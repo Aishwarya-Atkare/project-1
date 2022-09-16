@@ -1,0 +1,90 @@
+#!/bin/bash
+: ${SVNPATH:?"Need to set SVNPATH as environment variable in bash file"}
+: ${WARPATH:?"Need to set WARPATH variable in bash file"}
+: ${ENV:?"Need to set ENV name for war as variable in bash file"}
+: ${TOMCAT:?"Need to set tomcat version as variable in bash file"}
+
+if [ ! -f /etc/init.d/$TOMCAT ]
+then
+echo "Please check tomcat verion as mentioned in environment variable"
+exit 1
+else
+echo "$TOMCAT exist"
+fi
+service $TOMCAT stop
+DATE=$(date +%m_%d)
+DATE2=$(date +%y_%m_%d_%H:%M)
+mkdir -p /root/video_backup/sosvideos$DATE
+mkdir -p /root/driverimages_backup/driverimages$DATE/
+mkdir -p /root/cabappapk/cabappapk$DATE
+#mkdir -p /root/server_update_backup/backup$DATE2
+#cd /root/server_update_backup/backup$DATE2/
+#mysqldump -usmartcommute -psmartcommute smartcommute > DB_backup_$DATE2.sql
+#zip DB_backup_$DATE2.zip DB_backup_$DATE2.sql
+#rm -rf DB_backup_$DATE2.sql
+#cp -p $WARPATH/smartcommute.war .
+
+cd $WARPATH/smartcommute/
+
+cp -avr tripmedias/ /root/video_backup/sosvideos$DATE/
+cp -avr driverImages/ /root/driverimages_backup/driverimages$DATE/
+cp -pvr WEB-INF/cabappapk/* /root/cabappapk/cabappapk$DATE/.
+
+rm -rf /root/smartcommute/smartcommute/install/tomcat/apache-tomcat-8.5.70/webapps/*
+cd $SVNPATH
+rm -rf target/smartcommute-2.0.war
+#git fetch --all
+#git pull origin master
+#git pull .
+
+grails -Dgrails.env=$ENV war
+#War creation  check point
+if [ ! -f target/smartcommute-2.0.war ]
+then
+echo "War file not created successfully"
+exit 1
+else
+echo "War file created successfully"
+fi
+
+service $TOMCAT stop
+sleep 30s
+cd $WARPATH
+
+#Remove the old war
+rm -rf smartcommute
+rm -rf smartcommute.war
+
+if [ ! -f smartcommute.war ] && [ ! -f smartcommute ]
+then
+echo "Old war deleted successfully"
+else
+echo "Old war not deleted"
+exit 1
+fi
+
+#Copy the war from target folder to the tomcat's webapp
+cp -pvr $SVNPATH/target/smartcommute-2.0.war  $WARPATH/smartcommute.war
+
+if [ ! -f $WARPATH/smartcommute.war ]
+then
+echo "New war not coppied properly"
+exit 1
+else
+echo "New war replaced with old one....."
+fi
+
+#server start
+service $TOMCAT start
+#Logs view
+#cd /var/log/$TOMCAT
+#tail -f catalina.out
+cd /root/smartcommute/smartcommute/install/tomcat/apache-tomcat-8.5.70/logs/
+timeout 60s tail -f catalina.out
+
+cp -avr  /root/video_backup/sosvideos$DATE/tripmedias  $WARPATH/smartcommute/
+cp -pvr /root/cabappapk/cabappapk$DATE/* $WARPATH/smartcommute/WEB-INF/cabappapk/
+cp -avr /root/driverimages_backup/driverimages$DATE/driverImages/ $WARPATH/webapps/smartcommute/
+
+#tail -f /var/log/$TOMCAT/catalina.out
+tail -f /root/smartcommute/smartcommute/install/tomcat/apache-tomcat-8.5.70/logs/catalina.out
